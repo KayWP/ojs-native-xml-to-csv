@@ -28,7 +28,7 @@ The script produces a `output.csv` file with columns for:
 ## Usage
 
 ```bash
-python script.py <xml_file>
+python Converter.py <xml_file>
 ```
 
 
