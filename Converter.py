@@ -19,7 +19,7 @@ def main():
         sys.exit(1)  # Exit with an error code
 
     # Retrieve the XML file from command-line arguments
-    #xml_file = sys.argv[1]
+    xml_file = sys.argv[1]
     
     # Open the XML file with the correct encoding
     with open(xml_file, 'rb') as file:
