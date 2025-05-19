@@ -19,7 +19,7 @@ def main():
         sys.exit(1)  # Exit with an error code
 
     # Retrieve the XML file from command-line arguments
-    #xml_file = sys.argv[1]
+    xml_file = sys.argv[1]
     
     # Open the XML file with the correct encoding
     with open(xml_file, 'rb') as file:
@@ -80,6 +80,25 @@ def extract_base64(article_node):
     return base64_contents
 
 
+# In[3]:
+
+
+def extract_tile(article_node):
+    #find all covers
+    cover = article_node.find('.//{http://pkp.sfu.ca}cover')
+    
+    output = ""
+    
+    print(cover)
+    if cover is not None:
+        embed = cover.find('{http://pkp.sfu.ca}embed')
+        if embed is not None:
+            #add the base64 content
+            output = embed
+    
+    return output
+
+
 # In[5]:
 
 
@@ -102,6 +121,7 @@ class Article:
                  publication, 
                  abstract, 
                  base64_file, 
+                 tile,
                  publication_date, 
                  year, 
                  vol,
@@ -120,6 +140,7 @@ class Article:
         self.publication = publication
         self.abstract = abstract
         self.base64_file = base64_file
+        self.tile = tile
         self.publication_date = publication_date
         self.year = year
         self.vol = vol
@@ -160,6 +181,7 @@ class Article:
                  'publication': [self.publication],
                 'abstract': [self.abstract],
                 'file': [self.base64_file],
+                'tile': [self.tile],
                 'publication_date': [self.publication_date],
                 'year': [self.year],
                 'volume': [self.vol],
@@ -209,7 +231,7 @@ def get_keywords(keywords_node):
     return output_string
 
 
-# In[8]:
+# In[2]:
 
 
 def get_article_info(article_node, root, article_id):
@@ -218,7 +240,7 @@ def get_article_info(article_node, root, article_id):
     vol = '1'
     
     base64_file = extract_base64(article_node)
-    
+    tile = extract_tile(article_node)
     publications = article_node.findall('{http://pkp.sfu.ca}publication')
     publication = publications[0]
     
@@ -304,6 +326,7 @@ def get_article_info(article_node, root, article_id):
                  publication, 
                  abstract, 
                  base64_file, 
+                 tile,
                  publication_date,
                  year, 
                  vol,  
