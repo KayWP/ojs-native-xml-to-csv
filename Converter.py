@@ -52,7 +52,9 @@ def main():
     
     df['issue'] = df['issue'].astype(str)
 
-    df.to_csv('output.csv', sep=';', index=False, encoding='utf-8')
+    filename = xml_file.removesuffix('.xml')
+
+    df.to_csv(f'{filename}.csv', sep=';', index=False, encoding='utf-8')
 
     
     return df
