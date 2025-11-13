@@ -183,9 +183,24 @@ class Article:
 
 # Function to find the parent issue of a given article node
 def find_parent_issue(article_node, root):
-    for issue in root.findall('.//{http://pkp.sfu.ca}issue'):  # Iterate through all issues
-        if article_node in issue.findall('.//{http://pkp.sfu.ca}article'):  # Check if the article is in this issue
-            return issue
+    """Find the parent issue of a given article node."""
+    # First check if root itself is the issue
+    if root.tag == '{http://pkp.sfu.ca}issue':
+        # Check if this article is in this issue's articles
+        articles_container = root.find('.//{http://pkp.sfu.ca}articles')
+        if articles_container is not None:
+            for article in articles_container.findall('{http://pkp.sfu.ca}article'):
+                if article == article_node:
+                    return root
+    
+    # Otherwise search through all issues
+    for issue in root.findall('.//{http://pkp.sfu.ca}issue'):
+        articles_container = issue.find('{http://pkp.sfu.ca}articles')
+        if articles_container is not None:
+            for article in articles_container.findall('{http://pkp.sfu.ca}article'):
+                if article == article_node:
+                    return issue
+    
     return None
 
 
@@ -222,82 +237,144 @@ def get_article_info(article_node, root, article_id):
     publications = article_node.findall('{http://pkp.sfu.ca}publication')
     publication = publications[0]
     
-    locale = publication.attrib['locale']
-    publication_date = publication.attrib['date_published']
-    section_reference = publication.attrib['section_ref']
+    # Safe locale extraction with fallback
+    locale = publication.attrib.get('locale', 'en_US')
+    
+    # Safe attribute extraction
+    publication_date = publication.attrib.get('date_published', '')
+    section_reference = publication.attrib.get('section_ref', '')
     
     keywords = get_keywords(publication.find('{http://pkp.sfu.ca}keywords'))
     
+    # Initialize doi before loop
+    doi = ''
     for id_node in publication.findall('{http://pkp.sfu.ca}id'):
-        if id_node.get('type') == 'doi':  # Check for the 'type' attribute
+        if id_node.get('type') == 'doi':
             doi = id_node.text
     
+    # Initialize title with fallback logic
+    title = ''
     for title_node in publication.findall('{http://pkp.sfu.ca}title'):
-        if title_node.get('locale') == locale:
+        node_locale = title_node.get('locale')
+        if node_locale == locale:
             title = title_node.text
             title = html.unescape(title)
+            break
     
+    # If no title found for the locale, get the first available title
+    if not title:
+        title_nodes = publication.findall('{http://pkp.sfu.ca}title')
+        if title_nodes:
+            title = title_nodes[0].text
+            title = html.unescape(title)
+    
+    # Initialize abstract with fallback logic
+    abstract = ''
     for abstract_node in publication.findall('{http://pkp.sfu.ca}abstract'):
-        if abstract_node.get('locale') == locale:
+        node_locale = abstract_node.get('locale')
+        if node_locale == locale:
             abstract = abstract_node.text
+            break
+    
+    # If no abstract found for the locale, get the first available abstract
+    if not abstract:
+        abstract_nodes = publication.findall('{http://pkp.sfu.ca}abstract')
+        if abstract_nodes:
+            abstract = abstract_nodes[0].text
     
     try:
         page_number = publication.findall('{http://pkp.sfu.ca}pages')[0].text
     except IndexError:
-        page_number = ' '
+        page_number = ''
 
         
     author_list = publication.findall('.//{http://pkp.sfu.ca}author')
     authors = []
     for a in author_list:
-        first_name = a.find('{http://pkp.sfu.ca}givenname').text
-        last_name = a.find('{http://pkp.sfu.ca}familyname').text
+        first_name_node = a.find('{http://pkp.sfu.ca}givenname')
+        last_name_node = a.find('{http://pkp.sfu.ca}familyname')
         
-        try:
-            country = a.find('{http://pkp.sfu.ca}country').text
-        except AttributeError:
-            country = ''
+        # Handle missing author names
+        first_name = first_name_node.text if first_name_node is not None else ''
+        last_name = last_name_node.text if last_name_node is not None else ''
         
-        try:
-            email = a.find('{http://pkp.sfu.ca}email').text
-        except AttributeError:
-            email = ''
+        country_node = a.find('{http://pkp.sfu.ca}country')
+        country = country_node.text if country_node is not None else ''
+        
+        email_node = a.find('{http://pkp.sfu.ca}email')
+        email = email_node.text if email_node is not None else ''
             
-        try:    
-            affiliation = a.find('{http://pkp.sfu.ca}affiliation').text
-        except AttributeError:
-            affiliation = ''
+        affiliation_node = a.find('{http://pkp.sfu.ca}affiliation')
+        affiliation = affiliation_node.text if affiliation_node is not None else ''
             
         authors.append(Author(first_name, last_name, country, affiliation, email))
         
     parent_issue = find_parent_issue(article_node, root)
     issue_identification = parent_issue.find('{http://pkp.sfu.ca}issue_identification')
     
-    issue = issue_identification.find('{http://pkp.sfu.ca}number').text
+    issue_node = issue_identification.find('{http://pkp.sfu.ca}number')
+    issue = issue_node.text if issue_node is not None else ''
     
-    try:
-        year = issue_identification.find('{http://pkp.sfu.ca}year').text
-    except AttributeError:
-        year = publication_date[:4]
+    year_node = issue_identification.find('{http://pkp.sfu.ca}year')
+    if year_node is not None:
+        year = year_node.text
+    else:
+        year = publication_date[:4] if len(publication_date) >= 4 else ''
     
+    # Initialize publication with fallback logic
+    publication = ''
     for publication_node in issue_identification.findall('{http://pkp.sfu.ca}title'):
-        if publication_node.get('locale') == locale:
+        node_locale = publication_node.get('locale')
+        if node_locale == locale:
             publication = publication_node.text
+            break
+    
+    # If no publication found for the locale, get the first available title
+    if not publication:
+        publication_nodes = issue_identification.findall('{http://pkp.sfu.ca}title')
+        if publication_nodes:
+            publication = publication_nodes[0].text
             
     section_information = parent_issue.find('{http://pkp.sfu.ca}sections')
-    for section_node in section_information.findall('{http://pkp.sfu.ca}section'):
-        if section_node.get('ref') == section_reference:
-            for section_title_node in section_node.findall('{http://pkp.sfu.ca}title'):
-                if section_title_node.get('locale') == locale:
-                    section_title = section_title_node.text
-            
-            section_policy = ""
-            for section_policy_node in section_node.findall('{http://pkp.sfu.ca}policy'):
-                if section_policy_node.get('locale') == locale:
-                    section_policy = section_policy_node.text
-                    
-                else:
-                    section_policy = 'no section policy'
+    
+    # Initialize section variables
+    section_title = ''
+    section_policy = 'no section policy'
+    
+    if section_information is not None:
+        for section_node in section_information.findall('{http://pkp.sfu.ca}section'):
+            if section_node.get('ref') == section_reference:
+                # Find section title with fallback
+                for section_title_node in section_node.findall('{http://pkp.sfu.ca}title'):
+                    node_locale = section_title_node.get('locale')
+                    if node_locale == locale:
+                        section_title = section_title_node.text
+                        break
+                
+                # If no section title found for the locale, get the first available
+                if not section_title:
+                    section_title_nodes = section_node.findall('{http://pkp.sfu.ca}title')
+                    if section_title_nodes:
+                        section_title = section_title_nodes[0].text
+                
+                # Find section policy with fallback
+                section_policy_found = False
+                for section_policy_node in section_node.findall('{http://pkp.sfu.ca}policy'):
+                    node_locale = section_policy_node.get('locale')
+                    if node_locale == locale:
+                        section_policy = section_policy_node.text
+                        section_policy_found = True
+                        break
+                
+                # If no section policy found for the locale, get the first available
+                if not section_policy_found:
+                    section_policy_nodes = section_node.findall('{http://pkp.sfu.ca}policy')
+                    if section_policy_nodes:
+                        section_policy = section_policy_nodes[0].text
+                    else:
+                        section_policy = 'no section policy'
+                        
+                break  # Found the matching section, exit loop
                     
     return Article(article_id, 
                  title, 
