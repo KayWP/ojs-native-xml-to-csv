@@ -246,7 +246,22 @@ def get_article_info(article_node, root, article_id):
     publications = article_node.findall('{http://pkp.sfu.ca}publication')
     publication = publications[0]
     
-    locale = publication.attrib['locale']
+    # Try to read locale from publication attribute
+    locale = publication.attrib.get('locale')
+
+    # If missing, infer from child nodes (title, abstract, etc.)
+    if not locale:
+        # Look for any child node with a locale attribute
+        for child in publication:
+            found_locale = child.attrib.get('locale')
+            if found_locale:
+                locale = found_locale
+                break
+
+    # If still missing, fall back to default
+    if not locale:
+        locale = 'en'
+        
     publication_date = publication.attrib['date_published']
     section_reference = publication.attrib['section_ref']
     
