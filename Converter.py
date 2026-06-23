@@ -1,17 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
-
-
 import pandas as pd
 import sys
 import xml.etree.ElementTree as ET
 import html
-import random
-from base64tiles import gen_tile_list
-
-# In[3]:
 
 
 def main():
@@ -34,7 +27,6 @@ def main():
     row_id = 0
     
     for article in articles:
-        #print(row_id)
         processed = get_article_info(article, root, row_id)
         df = pd.DataFrame.from_dict(processed.to_row())
         rows.append(df)
@@ -49,24 +41,14 @@ def main():
     df = df.rename(columns={"article_id": "id"})
     
     df['volume'] = df['volume'].astype(str)
-    
-    
     df['issue'] = df['issue'].astype(str)
 
     filename = xml_file.removesuffix('.xml')
 
     df.to_csv(f'{filename}.csv', sep=';', index=False, encoding='utf-8')
 
-    
     return df
 
-
-# In[4]:
-def gen_random_tile():
-    #returns a random tile in base64 format
-    list_of_tiles = gen_tile_list()
-    tile = random.choice(list_of_tiles)
-    return tile
 
 def extract_base64(article_node):
     # Find all submission files in the article node
@@ -76,27 +58,16 @@ def extract_base64(article_node):
     for submission in submission_files:
         # Check each file inside the submission file
         for file in submission.findall('{http://pkp.sfu.ca}file'):
-            # Check if the genre is 'Manuscript'
-            if submission.get('genre') == 'Manuscript':
+            # Check if the genre is 'Manuscript' AND the extension is 'pdf'
+            if submission.get('genre') == 'Manuscript' and file.get('extension') == 'pdf':
                 # Find the <embed> tag that contains the base64 content
                 embed = file.find('{http://pkp.sfu.ca}embed')
-                if embed is not None:
-                    # Add the base64 content to the list
-                    base64_contents = embed.text
-                    
-    return base64_contents
-
-
-# In[3]:
-
-
-def extract_tile(article_node):
-    #find all covers
-        
-    return gen_random_tile()
-
-
-# In[5]:
+                if embed is not None and embed.text:
+                    # Return the base64 content
+                    return embed.text
+    
+    # Return empty string if no PDF manuscript found
+    return ''
 
 
 class Author:
@@ -108,9 +79,6 @@ class Author:
         self.email = email
 
 
-# In[6]:
-
-
 class Article:
     def __init__(self, 
                  article_id, 
@@ -118,7 +86,6 @@ class Article:
                  publication, 
                  abstract, 
                  base64_file, 
-                 tile,
                  publication_date, 
                  year, 
                  vol,
@@ -137,7 +104,6 @@ class Article:
         self.publication = publication
         self.abstract = abstract
         self.base64_file = base64_file
-        self.tile = tile
         self.publication_date = publication_date
         self.year = year
         self.vol = vol
@@ -152,73 +118,64 @@ class Article:
         self.keywords = keywords
     
     def export_authors(self):
-        #generate a dict with authors and column titles
-        amount_of_authors = len(self.authors)
-        author_id = 0
+        # Generate a dict with authors and column titles
         output = {}
-        for a in self.authors:
-            first_name_column = 'author_given_name_' + str(author_id)
-            last_name_column = 'author_family_name_' + str(author_id)
-            affiliation_column = 'author_affiliation_' + str(author_id)
-            country_column = 'author_country_' + str(author_id)
-            email_column = 'author_email_' + str(author_id)
+        for author_id, a in enumerate(self.authors):
+            first_name_column = f'author_given_name_{author_id}'
+            last_name_column = f'author_family_name_{author_id}'
+            affiliation_column = f'author_affiliation_{author_id}'
+            country_column = f'author_country_{author_id}'
+            email_column = f'author_email_{author_id}'
             output[first_name_column] = [a.first_name]
             output[last_name_column] = [a.last_name]
             output[affiliation_column] = [a.affiliation]
             output[country_column] = [a.country]
             output[email_column] = [a.email]
-            author_id += 1
         
         return output
     
     def to_row(self):
-        #function that outputs the article as a single row for a df, as a list
-        output = {'article_id': [self.article_id],
-                 'title': [self.title],
-                 'publication': [self.publication],
-                'abstract': [self.abstract],
-                'file': [self.base64_file],
-                'tile': [self.tile],
-                'publication_date': [self.publication_date],
-                'year': [self.year],
-                'volume': [self.vol],
-                'issue': [self.issue],
-                'page_number': [self.page_number],
-                'section_title': [self.section_title],
-                'section_policy': [self.section_policy],
-                'section_reference': [self.section_reference],
-                'doi': [self.doi],
-                 'keywords': [self.keywords]}
+        # Function that outputs the article as a single row for a df, as a dict
+        output = {
+            'article_id': [self.article_id],
+            'title': [self.title],
+            'publication': [self.publication],
+            'abstract': [self.abstract],
+            'file': [self.base64_file],
+            'publication_date': [self.publication_date],
+            'year': [self.year],
+            'volume': [self.vol],
+            'issue': [self.issue],
+            'page_number': [self.page_number],
+            'section_title': [self.section_title],
+            'section_policy': [self.section_policy],
+            'section_reference': [self.section_reference],
+            'doi': [self.doi],
+            'keywords': [self.keywords]
+        }
         
         authors = self.export_authors()
-        
         output = output | authors
         
         return output
 
 
-# In[7]:
-
-
-# Function to find the parent issue of a given article node
 def find_parent_issue(article_node, root):
-    for issue in root.findall('.//{http://pkp.sfu.ca}issue'):  # Iterate through all issues
-        if article_node in issue.findall('.//{http://pkp.sfu.ca}article'):  # Check if the article is in this issue
+    # Find the parent issue of a given article node
+    for issue in root.findall('.//{http://pkp.sfu.ca}issue'):
+        if article_node in issue.findall('.//{http://pkp.sfu.ca}article'):
             return issue
     return None
-
-
-# In[ ]:
 
 
 def get_keywords(keywords_node):
     # Check if keywords_node is None (no keywords element found)
     if keywords_node is None:
-        return ''  # Return empty string if no keywords
+        return ''
     
     output = []
     for keyword in keywords_node.findall('.//{http://pkp.sfu.ca}keyword'):
-        if keyword.text:  # Check if keyword has text content
+        if keyword.text:
             output.append(keyword.text)
     
     output_string = ''
@@ -233,16 +190,11 @@ def get_keywords(keywords_node):
     return output_string
 
 
-# In[2]:
-
-
 def get_article_info(article_node, root, article_id):
-    
-    #placeholder value
+    # Placeholder value
     vol = '1'
     
     base64_file = extract_base64(article_node)
-    tile = extract_tile(article_node)
     publications = article_node.findall('{http://pkp.sfu.ca}publication')
     publication = publications[0]
     
@@ -251,7 +203,6 @@ def get_article_info(article_node, root, article_id):
 
     # If missing, infer from child nodes (title, abstract, etc.)
     if not locale:
-        # Look for any child node with a locale attribute
         for child in publication:
             found_locale = child.attrib.get('locale')
             if found_locale:
@@ -273,7 +224,7 @@ def get_article_info(article_node, root, article_id):
     abstract = ''
     
     for id_node in publication.findall('{http://pkp.sfu.ca}id'):
-        if id_node.get('type') == 'doi':  # Check for the 'type' attribute
+        if id_node.get('type') == 'doi':
             doi = id_node.text
     
     for title_node in publication.findall('{http://pkp.sfu.ca}title'):
@@ -289,7 +240,6 @@ def get_article_info(article_node, root, article_id):
         page_number = publication.findall('{http://pkp.sfu.ca}pages')[0].text
     except IndexError:
         page_number = ' '
-
         
     author_list = publication.findall('.//{http://pkp.sfu.ca}author')
     authors = []
@@ -345,31 +295,28 @@ def get_article_info(article_node, root, article_id):
             for section_policy_node in section_node.findall('{http://pkp.sfu.ca}policy'):
                 if section_policy_node.get('locale') == locale:
                     section_policy = section_policy_node.text
-                    break  # Exit loop after finding the policy
+                    break
                     
-    return Article(article_id, 
-                 title, 
-                 publication_title,  # Changed from 'publication' to avoid conflict
-                 abstract, 
-                 base64_file, 
-                 tile,
-                 publication_date,
-                 year, 
-                 vol,  
-                 issue, 
-                 page_number, 
-                 section_title,
-                 section_policy,
-                 section_reference,
-                 doi,
-                 authors, 
-                 locale,
-                 keywords)
-
-
-# In[9]:
+    return Article(
+        article_id, 
+        title, 
+        publication_title,
+        abstract, 
+        base64_file, 
+        publication_date,
+        year, 
+        vol,  
+        issue, 
+        page_number, 
+        section_title,
+        section_policy,
+        section_reference,
+        doi,
+        authors, 
+        locale,
+        keywords
+    )
 
 
 if __name__ == "__main__":
     main()
-
